@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystal Ball Particle Animation</title>
+    <link rel="stylesheet" href="src/styles/styles.css">
+</head>
+<body>
+    <div id="container"></div>
+
+    <!-- Loading indicator -->
+    <div id="loading">Loading...</div>
+
+    <!-- Initialize application -->
+    <script type="module">
+        // Show loading indicator initially
+        const loadingElement = document.getElementById('loading');
+        
+        // Import and initialize application
+        import('./src/main.js')
+            .then(() => {
+                // Hide loading indicator on success
+                loadingElement.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Failed to load application:', error);
+                document.getElementById('container').innerHTML = `
+                    <div style="color: red; padding: 20px;">
+                        Error loading application: ${error.message}
+                    </div>
+                `;
+                loadingElement.style.display = 'none';
+            });
+    </script>
+</body>
+</html>
