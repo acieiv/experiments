@@ -19,33 +19,25 @@ class SceneManager {
      * Create a new SceneManager
      * @param {HTMLElement} container - The DOM element to render into
      */
-    constructor(container) {
+    constructor(container = document.getElementById('container')) {
         this.container = container;
         this.scene = null;
         this.camera = null;
         this.renderer = null;
-        
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        
-        this.initialize();
-    }
-    
-    /**
-     * Initialize the scene, camera, and renderer
-     */
-    initialize() {
+        this._observer = null; // For ResizeObserver
+
         try {
             // Create scene
             window.debug.log("Creating scene");
             this.scene = new Scene();
-            this.scene.background = new Color(0x000814); // Dark blue background
-            
+            this.scene.background = new Color(0x000814);
+
             // Create camera
             window.debug.log("Creating camera");
+            const aspect = this.container.clientWidth / this.container.clientHeight || 1;
             this.camera = new PerspectiveCamera(
                 settings.camera.fov,
-                this.width / this.height,
+                aspect, 
                 settings.camera.near,
                 settings.camera.far
             );
@@ -61,29 +53,29 @@ class SceneManager {
             this.renderer = new WebGLRenderer({ 
                 antialias: true,
                 alpha: true,
-                premultipliedAlpha: false, // Better for video transparency
+                premultipliedAlpha: false, 
                 powerPreference: "high-performance"
             });
-            // Configure renderer
-            this.renderer.setSize(this.width, this.height);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             this.renderer.sortObjects = true;
             this.renderer.setClearColor(0x000814, 1);
             
-            // Check if renderer was created successfully
+            // Initial resize using the new helper
+            this._resizeRenderer(); 
+            
             if (!this.renderer.domElement) {
                 throw new Error('Failed to create WebGL renderer');
             }
-            
-            // Add renderer to container
+            this.container.innerHTML = ''; // Clear any existing content (like test messages)
             this.container.appendChild(this.renderer.domElement);
             window.debug.log("Renderer added to container");
             
             // Setup lighting
             this.setupLighting();
             
-            // Add event listener for window resize
-            window.addEventListener('resize', this.onWindowResize.bind(this));
+            // Resize observer setup
+            this._observer = new ResizeObserver(() => this._resizeRenderer());
+            this._observer.observe(this.container);
             
             window.debug.log("Scene initialization complete");
             window.debug.setState('Scene', 'initialized');
@@ -93,6 +85,7 @@ class SceneManager {
             throw error;
         }
     }
+    
     
     /**
      * Set up scene lighting
@@ -110,19 +103,11 @@ class SceneManager {
         this.scene.add(directionalLight);
     }
     
-    /**
-     * Handle window resize
-     */
-    onWindowResize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        
-        // Update camera
-        this.camera.aspect = this.width / this.height;
-        this.camera.updateProjectionMatrix();
-        
-        // Update renderer
-        this.renderer.setSize(this.width, this.height);
+    _resizeRenderer () {
+      const { clientWidth: w, clientHeight: h } = this.container;
+      this.renderer.setSize( w, h, false ); // false to avoid canvas style overwrite
+      this.camera.aspect = w / h || 1;      // guard against zero height
+      this.camera.updateProjectionMatrix();
     }
     
     /**

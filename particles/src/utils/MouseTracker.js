@@ -8,8 +8,8 @@ class MouseTracker {
      * Create a new MouseTracker
      * @param {HTMLElement} element - The DOM element to track mouse movement on
      */
-    constructor(element) {
-        this.element = element || window;
+    constructor(targetElement = document.getElementById('container')) {
+        this.element = targetElement;
         
         // Mouse position (normalized -1 to 1)
         this.x = 0;
@@ -51,9 +51,19 @@ class MouseTracker {
      * @private
      */
     _onMouseMove(event) {
-        // Calculate normalized mouse position (-1 to 1 range)
-        this.targetX = (event.clientX / window.innerWidth) * 2 - 1;
-        this.targetY = -((event.clientY / window.innerHeight) * 2 - 1);
+        const rect = this.element.getBoundingClientRect();
+
+        // Ensure rect.width and rect.height are not zero to avoid division by zero
+        if (rect.width === 0 || rect.height === 0) {
+            // If the element has no size, cannot normalize, keep last position or default
+            return; 
+        }
+
+        const x = ( event.clientX - rect.left ) / rect.width;   // 0 → 1
+        const y = ( event.clientY - rect.top  ) / rect.height;  // 0 → 1
+
+        this.targetX = x *  2 - 1;   //  -1 → 1
+        this.targetY = y * -2 + 1;   //   1 → -1  (flip Y, so positive Y is up)
     }
     
     /**

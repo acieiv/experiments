@@ -268,6 +268,19 @@ class VideoManager {
         this.updateUniform(`video${property}`, value);
     }
     
+  // --- new helpers for the UI sliders -----------------
+  setVideoScale ( scale ) {            // zoom slider
+    this.setVideoProperty( 'Scale', scale );
+  }
+
+  setVideoOffsetX ( x ) {              // horizontal slider
+    this.setVideoProperty( 'OffsetX', x );
+  }
+
+  setVideoOffsetY ( y ) {              // vertical slider
+    this.setVideoProperty( 'OffsetY', y );
+  }
+
     /**
      * Set video opacity
      * @param {number} opacity - Opacity value

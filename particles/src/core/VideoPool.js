@@ -36,16 +36,50 @@ class VideoPool {
     initialize() {
         console.log("Initializing VideoPool");
         
-        if (this.sources.length < 2) {
-            console.error("At least two video sources are required");
-            return;
+        // --- guardrail: no videos at all -----------------
+        if ( this.sources.length === 0 ) {
+            throw new Error( "VideoPool requires at least one video source." );
         }
-        
+
         // Create shared geometry
         this.planeGeometry = new PlaneGeometry(
             this.options.planeSize,
             this.options.planeSize
         );
+        
+        // --- single‑video shortcut -----------------------
+        if ( this.sources.length === 1 ) {
+
+            const singleSource = this.sources[ 0 ];
+
+            const state = new VideoState(
+                singleSource,
+                this.planeGeometry,
+                this.createMaterial.bind( this ),
+                { position: { z: this.options.position.z } }   // same depth as usual
+            );
+
+            // cache + wire up
+            this.states.set( singleSource, state );
+            this.activeState = state;
+            this.nextState   = state;          // keeps later null checks unnecessary
+
+            // make sure it loops forever
+            if (state.video) { // Ensure video element exists before setting loop
+                state.video.loop = true;
+            } else {
+                console.warn("VideoPool: Video element not found for single source, cannot set loop.");
+            }
+            
+
+            this.scene.add( state.mesh );
+
+            state.play().catch( err =>
+                console.error( "Error auto‑playing single video:", err )
+            );
+
+            return;          // skip the multi‑video preload logic
+        }
         
         // Create initial states for first three videos (if available)
         const activeState = new VideoState(
@@ -128,6 +162,9 @@ class VideoPool {
      * Advance to the next video
      */
     advance() {
+        // nothing to advance if we only have one clip
+        if ( this.sources.length === 1 ) return;
+
         console.log("Advancing to next video");
         
         // Get indices for current, next, and future videos
@@ -140,6 +177,7 @@ class VideoPool {
         const oldActive = this.activeState;
         this.scene.remove(oldActive.mesh);
         oldActive.cleanup();
+        this.states.delete(oldActive.source); // Ensure cleaned-up state is removed from the pool
         
         // Update active state
         this.activeState = this.nextState;
