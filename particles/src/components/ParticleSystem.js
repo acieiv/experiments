@@ -4,6 +4,48 @@
  */
 
 import settings from '../config/settings.js';
+import {
+    BufferGeometry,
+    Color,
+    BufferAttribute,
+    Points,
+    Texture,
+    AdditiveBlending,
+    ShaderMaterial
+} from 'three';
+
+// Vertex Shader for Particles
+const particleVert = `
+  attribute float size;
+  attribute vec3 color;
+  uniform float sizeMultiplier;
+  varying vec3 vColor;
+
+  void main() {
+    vColor = color;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    
+    // Use length(mvPosition.xyz) for distance, which is generally more stable than -mvPosition.z for perspective.
+    // sizeMultiplier allows overall scaling.
+    gl_PointSize = size * sizeMultiplier * (150.0 / length(mvPosition.xyz));
+    
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+// Fragment Shader for Particles
+const particleFrag = `
+  uniform sampler2D particleTexture;
+  uniform float opacity;
+  varying vec3 vColor;
+
+  void main() {
+    vec4 texColor = texture2D(particleTexture, gl_PointCoord);
+    if (texColor.a < 0.1) discard; // For crisper edges
+
+    gl_FragColor = vec4(vColor, opacity) * texColor;
+  }
+`;
 
 class ParticleSystem {
     /**
@@ -45,7 +87,7 @@ class ParticleSystem {
     init() {
         try {
             // Create geometry for particles
-            this.geometry = new THREE.BufferGeometry();
+            this.geometry = new BufferGeometry();
             
             // Create arrays for particle attributes
             this.positions = new Float32Array(this.options.count * 3);
@@ -63,7 +105,7 @@ class ParticleSystem {
             this.material = this.createShaderMaterial();
             
             // Create the particle system
-            this.particleSystem = new THREE.Points(this.geometry, this.material);
+            this.particleSystem = new Points(this.geometry, this.material);
             
             // Add to scene
             this.scene.add(this.particleSystem);
@@ -94,7 +136,7 @@ class ParticleSystem {
         // Convert baseColor from hex to RGB if needed
         let baseColorObj;
         if (typeof baseColor === 'number') {
-            baseColorObj = new THREE.Color(baseColor);
+            baseColorObj = new Color(baseColor);
         } else {
             baseColorObj = baseColor;
         }
@@ -165,14 +207,14 @@ class ParticleSystem {
         }
         
         // Add attributes to geometry
-        this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-        this.geometry.setAttribute('size', new THREE.BufferAttribute(this.sizes, 1));
+        this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3));
+        this.geometry.setAttribute('color', new BufferAttribute(this.colors, 3));
+        this.geometry.setAttribute('size', new BufferAttribute(this.sizes, 1));
     }
     
     /**
      * Create a circular texture for particles
-     * @returns {THREE.Texture} The created texture
+     * @returns {Texture} The created texture
      */
     createCircleTexture() {
         const canvas = document.createElement('canvas');
@@ -196,29 +238,31 @@ class ParticleSystem {
         context.arc(centerX, centerY, radius, 0, Math.PI * 2);
         context.fill();
         
-        const texture = new THREE.Texture(canvas);
+        const texture = new Texture(canvas);
         texture.needsUpdate = true;
         return texture;
     }
     
     /**
      * Create shader material for particles
-     * @returns {THREE.PointsMaterial} The created material
+     * @returns {THREE.ShaderMaterial} The created material
      */
     createShaderMaterial() {
-        // Create circular particle texture
-        const particleTexture = this.createCircleTexture();
-        
-        // Using built-in PointsMaterial with circular texture
-        const material = new THREE.PointsMaterial({
-            size: this.options.maxSize,
-            sizeAttenuation: true,
-            map: particleTexture,
-            vertexColors: true,
+        const uniforms = {
+            particleTexture: { value: this.createCircleTexture() },
+            opacity:         { value: this.options.opacity },
+            sizeMultiplier:  { value: this.options.maxSize } // Initialize with maxSize, can be adjusted
+        };
+
+        const material = new ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: particleVert,
+            fragmentShader: particleFrag,
             transparent: true,
-            opacity: this.options.opacity,
-            blending: THREE.AdditiveBlending,  // For better glow effect
-            depthWrite: false
+            blending: AdditiveBlending,
+            depthWrite: false, // Important for additive blending and transparency
+            depthTest: true,   // Ensure nearer particles occlude farther ones correctly
+            vertexColors: true // Signals Three.js to use vertex colors (handled by 'color' attribute and vColor varying)
         });
         
         return material;
@@ -284,14 +328,14 @@ class ParticleSystem {
         this.geometry.attributes.position.needsUpdate = true;
         
         // Check for and fix any NaN values that might have been introduced during animation
-        for (let i = 0; i < positions.length; i++) {
-            if (isNaN(positions[i])) {
-                positions[i] = 0.0001; // Replace NaN with a small value
-            }
-        }
+        // for (let i = 0; i < positions.length; i++) {
+        //     if (isNaN(positions[i])) {
+        //         positions[i] = 0.0001; // Replace NaN with a small value
+        //     }
+        // }
         
         // Update bounding sphere after position changes
-        this.geometry.computeBoundingSphere();
+        // this.geometry.computeBoundingSphere(); // Removed for performance, called in init()
     }
     
     /**
@@ -326,10 +370,14 @@ class ParticleSystem {
         // Adjust particle properties for better video visibility
         if (this.material) {
             // Reduce particle opacity for better video visibility
-            this.material.opacity = this.options.opacity;
+            if (this.material.uniforms && this.material.uniforms.opacity) {
+                this.material.uniforms.opacity.value = this.options.opacity;
+            }
             
             // Adjust blending mode for better integration with video
-            this.material.blending = THREE.AdditiveBlending;
+            // Blending mode is set at material creation and usually doesn't need dynamic update here
+            // unless specifically required to change. The ShaderMaterial is already set to AdditiveBlending.
+            // this.material.blending = THREE.AdditiveBlending; 
             
             // Update material
             this.material.needsUpdate = true;
@@ -358,9 +406,8 @@ class ParticleSystem {
      * @param {number} opacity - Opacity value (0-1)
      */
     setOpacity(opacity) {
-        if (this.material) {
-            this.material.opacity = opacity;
-            this.material.needsUpdate = true;
+        if (this.material && this.material.uniforms && this.material.uniforms.opacity) {
+            this.material.uniforms.opacity.value = opacity;
         }
     }
 }
