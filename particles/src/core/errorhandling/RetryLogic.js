@@ -135,6 +135,19 @@ class RetryLogic {
                 currentVideoElement.addEventListener('canplay', boundAttemptResumeOnCanPlay, { once: true });
                 currentVideoElement.addEventListener('error', boundResumeErrorListener, { once: true });
 
+                // Force reload by resetting src
+                const originalSrc = currentVideoElement.src;
+                if (settings.debug.verboseLoggingEnabled && window.debug) {
+                    window.debug.log(`RetryLogic: Forcing reload for ${this.videoState.source}. Original src: ${originalSrc}`);
+                }
+                currentVideoElement.src = ''; 
+                // Consider a microtask delay here if issues persist: await Promise.resolve();
+                currentVideoElement.src = originalSrc; 
+                
+                // Now call load
+                if (settings.debug.verboseLoggingEnabled && window.debug) {
+                    window.debug.log(`RetryLogic: Calling load() for ${this.videoState.source} after src reset.`);
+                }
                 currentVideoElement.load(); // Reload the video
 
             } catch (e) {

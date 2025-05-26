@@ -46,6 +46,7 @@ class VideoStateCore {
         this.isAttemptingAutoResume = false;
         this.autoResumeAttempts = 0;
         this.lastAutoResumeAttemptTime = 0;
+        this.smartResumeTimeoutId = null; // Added for managing smart resume timeouts
         
         // Geometry and material creation references
         this.planeGeometry = planeGeometry;
@@ -97,9 +98,18 @@ class VideoStateCore {
         }
 
         // Reset flags relevant for reuse
-        this.hasEnded = false;
+        // DO NOT reset this.hasEnded here. If it ended, it should stay true until explicitly replayed.
+        // this.hasEnded = false; 
         this.preloaded = false; // Allow preload to re-evaluate buffering
         this.isCurrentUserVisible = false; // No longer the primary visible video
+
+        // Stop any ongoing smart resume attempts
+        this.isAttemptingAutoResume = false;
+        this.autoResumeAttempts = 0;
+        if (this.smartResumeTimeoutId) {
+            clearTimeout(this.smartResumeTimeoutId);
+            this.smartResumeTimeoutId = null;
+        }
 
         // DO NOT reset:
         // this.video (HTML element)

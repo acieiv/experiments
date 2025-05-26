@@ -253,24 +253,45 @@ class VideoEventHandler {
     }
 
     static _handleSmartResume(instance) { // instance is VideoStateCore
-        if (!instance || !instance.video || instance.isAttemptingAutoResume) {
+        if (!instance || !instance.video) { // Allow first attempt even if isAttemptingAutoResume is true from a previous event cycle
             return;
         }
 
+        // Primary Fix: If the video has already ended, do not attempt to smart resume it.
+        if (instance.hasEnded) {
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoEventHandler: Skipping smart resume for ${instance.source} because instance.hasEnded is true. Current pauseReason: ${instance.pauseReason}`, 'info');
+            }
+            if (instance.smartResumeTimeoutId) {
+                clearTimeout(instance.smartResumeTimeoutId);
+                instance.smartResumeTimeoutId = null;
+            }
+            instance.isAttemptingAutoResume = false; // Ensure flags are reset
+            instance.autoResumeAttempts = 0;
+            return; 
+        }
+        
         const now = performance.now();
 
         if (instance.autoResumeAttempts >= MAX_AUTO_RESUME_ATTEMPTS) {
             if (settings.debug.enabled && window.debug) {
                 window.debug.log(`VideoEventHandler: Max auto-resume attempts (${MAX_AUTO_RESUME_ATTEMPTS}) reached for ${instance.source}. Giving up on smart resume. ErrorManager might take over.`, 'warn');
             }
+            if (instance.smartResumeTimeoutId) { // Clear timeout if max attempts reached
+                clearTimeout(instance.smartResumeTimeoutId);
+                instance.smartResumeTimeoutId = null;
+            }
             return;
         }
 
-        if (now - instance.lastAutoResumeAttemptTime < RESUME_THROTTLE_INTERVAL) {
+        // Throttle subsequent attempts, but not the very first one for a given pause event.
+        if (instance.autoResumeAttempts > 0 && (now - instance.lastAutoResumeAttemptTime < RESUME_THROTTLE_INTERVAL)) {
             if (settings.debug.verboseLoggingEnabled && window.debug) {
                 window.debug.log(`VideoEventHandler: Auto-resume attempt for ${instance.source} throttled. Waiting...`);
             }
-            setTimeout(() => VideoEventHandler._handleSmartResume(instance), RESUME_THROTTLE_INTERVAL - (now - instance.lastAutoResumeAttemptTime));
+            // Clear previous timeout before setting a new one
+            if (instance.smartResumeTimeoutId) clearTimeout(instance.smartResumeTimeoutId);
+            instance.smartResumeTimeoutId = setTimeout(() => VideoEventHandler._handleSmartResume(instance), RESUME_THROTTLE_INTERVAL - (now - instance.lastAutoResumeAttemptTime));
             return;
         }
 
@@ -289,40 +310,36 @@ class VideoEventHandler {
             if (settings.debug.enabled && window.debug) {
                 window.debug.log(`VideoEventHandler: Smart resume conditions met for ${instance.source}. Calling play via PlaybackController.`);
             }
-            // To play, we should call the main VideoState's play method, or VideoPlaybackController's static play method
-            // Assuming VideoPlaybackController is accessible or we call a method on the main VideoState facade
-            // For now, directly using instance.play() which should be the facade's play method if this 'instance' is the facade.
-            // However, 'instance' here is VideoStateCore. So we need to call the controller.
-            // This part needs careful wiring. For now, let's assume VideoStateCore has a reference or we use the controller.
-            // Let's assume the main VideoState facade's play method is what should be called.
-            // This static method doesn't have access to the facade.
-            // This indicates _handleSmartResume might better live on VideoPlaybackController or the facade.
-            // For now, we'll assume 'instance' (VideoStateCore) has a way to trigger play.
-            // This is a structural issue to resolve in the main VideoState facade.
-            // A quick fix: instance.playbackManager.videoState.play() if videoState is the facade.
-            // Or, pass the facade to _handleSmartResume.
-            // For now, this will likely fail or not work as intended without further refactoring of how play is called.
-            // Let's assume VideoStateCore itself doesn't have a .play() method.
-            // The VideoPlaybackController.play(instance) is the correct way.
+            // Clear any pending timeout before attempting to play
+            if (instance.smartResumeTimeoutId) {
+                clearTimeout(instance.smartResumeTimeoutId);
+                instance.smartResumeTimeoutId = null;
+            }
             VideoPlaybackController.play(instance) // instance here is VideoStateCore
                 .then(() => {
                     if (settings.debug.enabled && window.debug) {
                         window.debug.log(`VideoEventHandler: Smart resume play() successful for ${instance.source}.`);
                     }
+                    // instance.isAttemptingAutoResume and autoResumeAttempts are reset by the 'playing' event handler
+                    // No need to clear smartResumeTimeoutId here as it was cleared before play, and 'playing' event handles state.
                 })
                 .catch(err => {
                     if (settings.debug.enabled && window.debug) {
                         window.debug.log(`VideoEventHandler: Smart resume play() failed for ${instance.source}: ${err.message}`, 'warn');
                     }
                     instance.isAttemptingAutoResume = false; 
-                    setTimeout(() => VideoEventHandler._handleSmartResume(instance), RETRY_DELAY_IF_NO_BUFFER);
+                    // Schedule another attempt
+                    if (instance.smartResumeTimeoutId) clearTimeout(instance.smartResumeTimeoutId);
+                    instance.smartResumeTimeoutId = setTimeout(() => VideoEventHandler._handleSmartResume(instance), RETRY_DELAY_IF_NO_BUFFER);
                 });
         } else {
             if (settings.debug.enabled && window.debug) {
-                window.debug.log(`VideoEventHandler: Smart resume conditions not met for ${instance.source} (Buffer: ${hasEnoughBuffer}, ReadyState: ${readyStateSufficient}, Needed: ${HTMLMediaElement.HAVE_ENOUGH_DATA}). Will retry.`, 'warn');
+                window.debug.log(`VideoEventHandler: Smart resume conditions not met for ${instance.source} (Buffer: ${hasEnoughBuffer}, Actual ReadyState: ${instance.video.readyState}, Needed: ${HTMLMediaElement.HAVE_ENOUGH_DATA}). Will retry.`, 'warn');
             }
             instance.isAttemptingAutoResume = false;
-            setTimeout(() => VideoEventHandler._handleSmartResume(instance), RETRY_DELAY_IF_NO_BUFFER);
+            // Schedule another attempt
+            if (instance.smartResumeTimeoutId) clearTimeout(instance.smartResumeTimeoutId);
+            instance.smartResumeTimeoutId = setTimeout(() => VideoEventHandler._handleSmartResume(instance), RETRY_DELAY_IF_NO_BUFFER);
         }
     }
 }

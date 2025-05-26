@@ -396,7 +396,7 @@ class VideoPool {
         if (newActiveState) {
             this.activeState = newActiveState;
             this.activeState.isCurrentUserVisible = true;
-            this.activeState.hasEnded = false;
+            this.activeState.hasEnded = false; // Ensure hasEnded is reset for the new playback cycle
             // Opacity and mesh adding will be handled by transition controller or immediately after this
             this.activeState.play().catch(error => {
                 if (settings.debug.enabled && window.debug) window.debug.log(`VideoPool: Error playing new active video ${this.activeState.source}: ${error.message}`, 'error');
