@@ -117,12 +117,17 @@ function animate(time) {
     
     // Update particle system
     if (particleSystem) particleSystem.update(time); // Step 7: Uncomment and keep guard
+
+    // Apply parallax counter-rotation using smoothed mouse values
+    if (particleSystem && typeof settings.particles.parallaxCounterRotationFactor === 'number') {
+        particleSystem.applyParallaxCounterRotation(mouseX, mouseY); // mouseX, mouseY are already smoothed
+    }
     
     // Apply automatic rotation
     const rotationSpeed = settings.particles.rotationSpeed; // Step 7: Uncomment
     if (particleSystem && rotationSpeed) particleSystem.rotate(rotationSpeed.x, rotationSpeed.y, rotationSpeed.z); // Step 7: Uncomment and keep guard
     
-    // Apply mouse-based rotation
+    // Apply mouse-based rotation (direct user control for spinning)
     if (particleSystem && settings.mouse) particleSystem.applyMouseRotation(mouseX, mouseY, settings.mouse.influence); // Step 7: Uncomment and keep guard
     
     // Update video manager

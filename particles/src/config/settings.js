@@ -31,10 +31,28 @@ const settings = {
         depthLayers: 3,
         depthVariation: 0.3,
         opacity: 0.5,
+        parallaxDepthFactor: 0.6, // Added for parallax strength
+        parallaxCounterRotationFactor: 0.008, // Added for counter-rotation effect
         rotationSpeed: {
             x: 0.00005,
             y: 0.0001,
             z: 0.00002
+        },
+        // Enhanced noise-based motion system
+        noise: {
+            scale: 0.4,              // Noise field scale (lowered for more organic drift)
+            speed: 0.3,              // Noise evolution speed
+            strength: 2.0,           // Movement amplitude (increased from 0.02)
+            octaves: 2,              // Noise complexity layers
+            seed: 12345,             // Deterministic behavior
+            rotation: 0.1,           // Field rotation speed
+            centerDampening: 2.0,    // Fade-in curve strength near center (reverted to 2.0)
+            turbulence: {
+                enabled: true,
+                strength: 0.008,     // Curl noise strength
+                curlScale: 1.2,      // Scale for curl noise sampling
+                helixFactor: 0.5     // Helical motion influence
+            }
         }
     },
     

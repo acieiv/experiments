@@ -241,12 +241,17 @@ class VideoPool {
      * @param {Object} params - Update parameters (time, mousePosition, mouseX, mouseY, lookAtTarget)
      */
     updateStates(params) {
-        [this.activeState, this.nextState]
-            .filter(Boolean)
-            .forEach(state => state.update({
-                ...params,
-                parallaxAmount: this.options.parallaxAmount
-            }));
+        // Update all VideoState instances currently managed by the pool.
+        // This ensures that even preloading videos (not just active and next)
+        // have their PlaybackManager updated for accurate readiness checks.
+        this.states.forEach(state => {
+            if (state) { // Ensure state exists
+                state.update({
+                    ...params,
+                    parallaxAmount: this.options.parallaxAmount
+                });
+            }
+        });
     }
     
     /**
