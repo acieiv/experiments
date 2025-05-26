@@ -1,5 +1,3 @@
-console.log('[main.js] Module execution started (restored, imports initially commented).');
-
 // Original imports - will be uncommented step-by-step for testing
 import DebugOverlay from './utils/DebugOverlay.js';
 import settings from './config/settings.js';
@@ -7,7 +5,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import SceneManager from './core/SceneManager.js'; // Keep one SceneManager import
 import MouseTracker from './utils/MouseTracker.js';
 import ParticleSystem from './components/ParticleSystem.js';
-import VideoManager from './core/VideoManager.js';
+import VideoManager from './core/video/VideoManager.js';
 /*
 */
 
@@ -132,7 +130,6 @@ function animate(time) {
 
 // Call init directly now that the module is loaded and parsed.
 // The dynamic import in index.html ensures this runs after index.html's script starts.
-console.log('[main.js] About to call async init() via IIFE.');
 
 (async () => {
     try {
@@ -170,4 +167,3 @@ window.app = { // Step 7: Uncomment
     mouseTracker,
     settings
 };
-console.log('[main.js] Module execution finished (restored, imports initially commented).');

@@ -67,8 +67,13 @@ const settings = {
         position: { z: -1.0 },
         initialOpacity: 0.8,
         transitionDuration: 2.0, // seconds for fade transition
-        videoDuration: 15.0, // seconds before switching videos
+        videoDuration: 20.0, // seconds before switching videos (Increased from 15.0)
+        maxNextBufferWaitDuration: 5.0, // seconds to wait for next video to buffer before forcing transition
         parallaxAmount: 0.15, // How much the video planes move with mouse
+        gentlePauseWaitingCountThreshold: 3, // Number of 'waiting' events before more aggressive stall handling
+        gentlePauseRecoveryTimeoutMs: 2500, // Milliseconds to wait for recovery during a gentle pause
+        fallbackVideoUrl: 'src/assets/videos/fallback_video.mp4', // Default fallback video
+        maxLoadRetries: 1, // Retries for initial load/HEAD check
     },
     
     // Shader settings
@@ -122,6 +127,12 @@ const settings = {
     mouse: {
         influence: 0.001, // How much mouse movement affects the scene
         smoothing: 0.08   // Smoothing factor for mouse movement
+    },
+
+    // Caching settings
+    caching: {
+        videosEnabled: true,        // Master switch for video caching via Cache API
+        videoCacheName: 'particle-video-cache-v1' // Name for the video cache storage
     },
 
     // Debug settings

@@ -8,19 +8,23 @@ import {
     LinearFilter,
     RGBAFormat
 } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import settings from '../config/settings.js'; // Added
-import DebugOverlay from '../utils/DebugOverlay.js'; // Added
+import settings from '../../config/settings.js'; // Adjusted path
+import DebugOverlay from '../../utils/DebugOverlay.js'; // Adjusted path
 
 class VideoTextureManager {
     constructor(videoStateInstance) {
-        this.videoState = videoStateInstance;
-        this.video = videoStateInstance.video; // Assuming video element is available
+        this.videoState = videoStateInstance; // Instance of VideoStateCore
+        // this.video will be accessed dynamically via this.videoState.video
 
         this.tempTexture = null; // Placeholder texture
         this.actualVideoTexture = null; // HQ VideoTexture
         this.hasHighQualityTexture = false; // Flag if HQ texture object is created
         
         this.createPlaceholderTexture();
+    }
+
+    get video() { // Convenience getter
+        return this.videoState ? this.videoState.video : null;
     }
 
     createPlaceholderTexture() {
@@ -49,42 +53,42 @@ class VideoTextureManager {
         }
     }
 
-    // Called when video 'loadeddata' event fires
+    // Called when video 'loadeddata' event fires (via VideoStateCore's onLoadedDataForTextureHandler)
     prepareHighQualityTexture() {
-        if (this.video && this.video.videoWidth && this.video.videoHeight) {
-            if (this.actualVideoTexture) { // Dispose previous one if any
+        const videoElement = this.video; 
+        if (videoElement && videoElement.videoWidth && videoElement.videoHeight) {
+            if (this.actualVideoTexture) { 
                 this.actualVideoTexture.dispose();
             }
-            this.actualVideoTexture = new VideoTexture(this.video);
+            this.actualVideoTexture = new VideoTexture(videoElement);
             this.actualVideoTexture.minFilter = LinearFilter;
             this.actualVideoTexture.magFilter = LinearFilter;
-            this.actualVideoTexture.format = RGBAFormat;
+            this.actualVideoTexture.format = RGBAFormat; // Ensure RGBAFormat for consistency
             this.hasHighQualityTexture = true;
             if (settings.debug.verboseLoggingEnabled && window.debug) {
                 window.debug.log(`VideoTextureManager: HQ texture prepared for ${this.videoState.source} (not yet active).`);
             }
             
-            // If video is already playing and ready, attempt to activate immediately
             this.tryActivateHighQualityTexture();
         } else {
             if (settings.debug.enabled && window.debug) {
-                window.debug.log(`VideoTextureManager: Cannot prepare HQ texture for ${this.videoState.source}, video dimensions not available.`, 'warn');
+                window.debug.log(`VideoTextureManager: Cannot prepare HQ texture for ${this.videoState.source}, video dimensions not available. Video Element: ${videoElement}`, 'warn');
             }
         }
     }
 
-    // Called when video 'playing' event fires, or during update loop
     tryActivateHighQualityTexture() {
-        if (this.videoState.playing && 
+        const videoElement = this.video; 
+        if (this.videoState.playing && // playing flag on VideoStateCore
             this.hasHighQualityTexture && 
             this.actualVideoTexture &&
             this.videoState.mesh?.material && 
             this.videoState.mesh.material.uniforms.videoTexture.value !== this.actualVideoTexture &&
-            this.video && this.video.readyState >= 2) { // HAVE_CURRENT_DATA
+            videoElement && videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) { // HAVE_CURRENT_DATA (2) or higher
 
             this.videoState.mesh.material.uniforms.videoTexture.value = this.actualVideoTexture;
             this.videoState.mesh.material.needsUpdate = true;
-            this.videoState.texture = this.actualVideoTexture; // Update VideoState's main texture reference
+            this.videoState.texture = this.actualVideoTexture; 
             if (settings.debug.verboseLoggingEnabled && window.debug) {
                 window.debug.log(`VideoTextureManager: Activated HQ texture for ${this.videoState.source}.`);
             }
@@ -92,30 +96,20 @@ class VideoTextureManager {
         }
         return false;
     }
-
-    getCurrentTexture() {
-        // Prefer actual video texture if it's ready and active, otherwise placeholder
-        if (this.hasHighQualityTexture && this.actualVideoTexture && 
-            this.videoState.mesh?.material?.uniforms.videoTexture.value === this.actualVideoTexture) {
-            return this.actualVideoTexture;
-        }
-        return this.tempTexture;
-    }
     
     getInitialTexture() {
+        // This is called by VideoStateCore constructor before video element exists.
+        // So, it must always return the tempTexture.
         return this.tempTexture;
     }
 
     cleanup() {
-        // The tempTexture might be shared or managed differently, so we primarily dispose the actualVideoTexture.
         if (this.actualVideoTexture) {
             this.actualVideoTexture.dispose();
             this.actualVideoTexture = null;
         }
-        // tempTexture is a CanvasTexture, its canvas element might need explicit handling if not garbage collected.
-        // For now, we assume it's simple enough.
         if (this.tempTexture) {
-            this.tempTexture.dispose(); // Dispose placeholder as well
+            this.tempTexture.dispose(); 
             this.tempTexture = null;
         }
         this.hasHighQualityTexture = false;

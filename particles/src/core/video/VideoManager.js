@@ -4,10 +4,10 @@
  */
 
 import { Vector2 } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import settings from '../config/settings.js';
-import DebugOverlay from '../utils/DebugOverlay.js'; // Added
-import VideoPool from './VideoPool.js';
-import VideoTransitionController from './VideoTransitionController.js';
+import settings from '../../config/settings.js'; // Adjusted
+import DebugOverlay from '../../utils/DebugOverlay.js'; // Adjusted
+import VideoPool from './VideoPool.js'; // Adjusted - now a sibling
+import VideoTransitionController from './VideoTransitionController.js'; // Adjusted - now a sibling
 
 class VideoManager {
     /**
@@ -38,16 +38,9 @@ class VideoManager {
                 position: settings.video.position,
                 parallaxAmount: settings.video.parallaxAmount,
                 shaders: settings.shaders
-                // VideoPool's constructor now calls its own initializeAsync,
-                // so we don't await that directly here.
-                // However, if VideoPool's initializeAsync needed to be awaited *by VideoManager*
-                // before VideoManager itself is considered initialized, we would do:
-                // await this.videoPool.initializeAsync(); // Assuming VideoPool's constructor doesn't await it.
-                // For now, VideoPool handles its own async init internally triggered by its constructor.
             }
         );
         
-        // Await the VideoPool's own asynchronous initialization
         if (this.videoPool.initializationPromise) {
             await this.videoPool.initializationPromise;
             if (settings.debug.enabled && window.debug) {
@@ -77,8 +70,6 @@ class VideoManager {
         // Update transition controller
         this.transitionController.update(deltaTime);
         
-        // Video states will be updated with mouse position in updateParallax
-        // Time is passed for potential time-based effects within VideoState itself
         this.videoPool.updateStates({ time });
     }
     
@@ -147,13 +138,6 @@ class VideoManager {
         if (!this.videoPool || !this.transitionController) return;
         
         if (this.transitionController.isTransitioning()) {
-            // During transition, the controller handles individual opacities.
-            // This call could adjust a master/target opacity if needed,
-            // but the controller's logic would need to incorporate it.
-            // For now, let's assume the controller's opacity logic is sufficient
-            // or this function adjusts an overall "target" opacity that the controller might use.
-            // Simplest approach: if transitioning, let controller manage. If not, set active.
-            // However, to allow UI to dim overall scene including during transition:
             const progress = this.transitionController.getTransitionProgress();
             const forcedFactor = this.transitionController.wasForced() ? 0.8 : 1.0;
 
@@ -162,7 +146,6 @@ class VideoManager {
 
         } else {
             this.videoPool.activeState?.setOpacity(opacity);
-            // Ensure next video is hidden if not transitioning
             this.videoPool.nextState?.setOpacity(0);
         }
     }
@@ -173,7 +156,7 @@ class VideoManager {
     cleanup() {
         this.videoPool?.cleanup();
         this.videoPool = null;
-        this.transitionController = null; // Clean up controller reference
+        this.transitionController = null; 
     }
 }
 

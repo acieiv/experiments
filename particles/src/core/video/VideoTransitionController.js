@@ -2,8 +2,8 @@
  * VideoTransitionController.js
  * Manages the state and logic for video transitions.
  */
-import settings from '../config/settings.js';
-import DebugOverlay from '../utils/DebugOverlay.js'; // Added
+import settings from '../../config/settings.js'; // Adjusted
+import DebugOverlay from '../../utils/DebugOverlay.js'; // Adjusted
 
 const READINESS_CHECK_INTERVAL = 500; // ms
 // const MAX_FAILED_TRANSITION_ATTEMPTS = 3; // No longer used
@@ -30,11 +30,14 @@ class VideoTransitionController {
             lastReadinessCheckTime: 0,
             failedAttempts: 0, // Failed attempts to start a transition due to video readiness
             isForced: false, // True if the current or last transition was forced
+            isWaitingForNextBuffer: false, // True if waiting for the next video to buffer
+            nextBufferWaitTime: 0, // Time spent waiting for the next video's buffer
         };
 
         // Transition parameters from settings
         this.transitionDuration = settings.video.transitionDuration;
         this.videoDisplayDuration = settings.video.videoDuration; // How long a video plays before attempting to switch
+        this.maxNextBufferWaitDuration = settings.video.maxNextBufferWaitDuration; // Max time to wait for next buffer
     }
 
     /**
@@ -45,6 +48,7 @@ class VideoTransitionController {
         if (this.state.isTransitioning) {
             this._updateActiveTransition(deltaTime);
         } else {
+            // Pass deltaTime to _checkAndStartTransition
             this._checkAndStartTransition(deltaTime);
         }
     }
@@ -83,39 +87,95 @@ class VideoTransitionController {
 
         if (!activeVideo) { return; } // No active video to check
 
-        let shouldTransition = false;
-        let reason = "";
+        // Immediately force transition if the active video is permanently failed
+        if (activeVideo.isPermanentlyFailed) {
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoTransitionController: Active video ${activeVideo.source} is permanently failed. Forcing transition.`, 'warn');
+            }
+            this.onForceTransition();
+            this._initiateTransition(true); // true for forced
+            if (activeVideo) { activeVideo.hasEnded = true; } // Mark as ended to ensure it's processed out
+            return;
+        }
+
+        let attemptTransition = false;
+        let transitionReason = "";
+        let forceTransition = false;
 
         // Primary Trigger: Video has naturally ended
         if (activeVideo.hasEnded) {
-            shouldTransition = true;
-            reason = `Video ${activeVideo.source} reported 'ended'.`;
+            attemptTransition = true;
+            transitionReason = `Video ${activeVideo.source} reported 'ended'.`;
+            forceTransition = true; // Ended video should transition quickly
         }
 
-        // Fallback Trigger: Timeout based on video duration (if 'ended' event was missed or video stalled)
-        if (!shouldTransition) {
+        // Fallback Trigger: Timeout
+        if (!attemptTransition) {
             let actualDuration = activeVideo.video?.duration;
-            let timeoutDuration = this.videoDisplayDuration; // Default fallback from settings (e.g., 10-15s)
-
+            let timeoutDuration = this.videoDisplayDuration;
             if (actualDuration && !isNaN(actualDuration) && actualDuration > 0) {
-                // Use video's own duration + a grace period for the timeout
-                timeoutDuration = actualDuration + 1.0; // Grace period of 1 second
+                timeoutDuration = actualDuration + 1.0; // Grace period
             }
-            
+
             if (this.state.timeSinceLastTransition >= timeoutDuration) {
-                shouldTransition = true;
-                reason = `Video ${activeVideo.source} fallback timeout (based on duration: ${actualDuration ? actualDuration.toFixed(2) : 'N/A'}s, effective timeout: ${timeoutDuration.toFixed(2)}s) reached.`;
+                // Timeout reached, now check next video's buffer
+                const nextVideo = this.videoPool.nextState;
+                const nextVideoReady = nextVideo?.isSufficientlyPreloaded();
+
+                if (this.state.isWaitingForNextBuffer) {
+                    this.state.nextBufferWaitTime += deltaTime;
+                    if (nextVideoReady) {
+                        attemptTransition = true;
+                        transitionReason = `Video ${activeVideo.source} timeout reached, next video ${nextVideo.source} now buffered after waiting ${this.state.nextBufferWaitTime.toFixed(2)}s.`;
+                        forceTransition = false; // Not forced, next video is ready
+                        this._resetWaitingForNextBufferState();
+                    } else if (this.state.nextBufferWaitTime >= this.maxNextBufferWaitDuration) {
+                        attemptTransition = true;
+                        transitionReason = `Video ${activeVideo.source} timeout reached, and max wait time (${this.maxNextBufferWaitDuration}s) for next video ${nextVideo?.source || 'N/A'} exceeded. Forcing.`;
+                        forceTransition = true;
+                        this._resetWaitingForNextBufferState();
+                    } else {
+                        // Still waiting, do nothing this frame
+                        if (settings.debug.verboseLoggingEnabled && window.debug) {
+                            window.debug.log(`VideoTransitionController: Waiting for next video buffer. Waited ${this.state.nextBufferWaitTime.toFixed(2)}s / ${this.maxNextBufferWaitDuration}s for ${nextVideo?.source}`);
+                        }
+                    }
+                } else { // Not currently waiting, this is the first time timeout is hit
+                    if (nextVideoReady) {
+                        attemptTransition = true;
+                        transitionReason = `Video ${activeVideo.source} timeout reached, next video ${nextVideo.source} is ready.`;
+                        forceTransition = false; // Next video is ready
+                    } else {
+                        if (settings.debug.enabled && window.debug) {
+                            window.debug.log(`VideoTransitionController: Video ${activeVideo.source} timeout. Next video ${nextVideo?.source || 'N/A'} not ready. Starting wait period.`);
+                        }
+                        this.state.isWaitingForNextBuffer = true;
+                        this.state.nextBufferWaitTime = 0;
+                        // Don't transition yet, wait for next buffer or maxNextBufferWaitDuration
+                    }
+                }
             }
         }
 
-        if (shouldTransition) {
+        if (attemptTransition) {
             if (settings.debug.enabled && window.debug) {
-                window.debug.log(`VideoTransitionController: ${reason} Forcing transition.`);
+                window.debug.log(`VideoTransitionController: ${transitionReason} Initiating transition (forced: ${forceTransition}).`);
             }
-            this.onForceTransition();
-            this._initiateTransition(true); // Use the quick "forced" transition style
-            if (activeVideo) { activeVideo.hasEnded = false; } // Reset flag after initiating transition
+            if (forceTransition) {
+                this.onForceTransition(); // Call specific callback if forced
+            }
+            this._initiateTransition(forceTransition);
+            if (activeVideo) { activeVideo.hasEnded = false; } // Reset flag
         }
+    }
+
+    /**
+     * @private
+     * Resets the state variables related to waiting for the next video's buffer.
+     */
+    _resetWaitingForNextBufferState() {
+        this.state.isWaitingForNextBuffer = false;
+        this.state.nextBufferWaitTime = 0;
     }
     
     /**
@@ -128,17 +188,23 @@ class VideoTransitionController {
         this.state.progress = 0;
         this.state.isForced = isForced;
         this.state.readinessChecks = 0;
+        this._resetWaitingForNextBufferState(); // Reset waiting state when a transition starts
         // Do not reset failedAttempts here, only upon successful *non-forced* completion
         
-        if (isForced && this.videoPool.activeState) {
-            this.videoPool.activeState.pause(); // Explicitly pause the old video
+        if (this.videoPool.activeState) { // Pause active video regardless of forced, but with reason
+            this.videoPool.activeState.pause('transition'); 
+            if (settings.debug.verboseLoggingEnabled && window.debug) {
+                window.debug.log(`VideoTransitionController: Paused active video ${this.videoPool.activeState.source} with reason 'transition'.`);
+            }
         }
         
         this.onTransitionStart({ forced: isForced });
 
         // Ensure next video is visible if it's not already
         if (this.videoPool.nextState) {
-            this.videoPool.nextState.mesh.visible = true;
+            if (this.videoPool.nextState.mesh) { // Check if mesh exists
+                this.videoPool.nextState.mesh.visible = true;
+            }
             if (isForced) { // If forced, immediately set next video opacity to a low value
                 this.videoPool.nextState.setOpacity(0.1);
             }
@@ -192,6 +258,7 @@ class VideoTransitionController {
         // this.state.progress = 0; // Resetting progress above if completion failed.
         this.state.timeSinceLastTransition = 0;
         this.state.readinessChecks = 0;
+        this._resetWaitingForNextBufferState(); // Also reset waiting state on completion
         const wasForced = this.state.isForced; // Capture before reset
         this.state.isForced = false; 
 
