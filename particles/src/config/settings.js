@@ -122,6 +122,13 @@ const settings = {
     mouse: {
         influence: 0.001, // How much mouse movement affects the scene
         smoothing: 0.08   // Smoothing factor for mouse movement
+    },
+
+    // Debug settings
+    debug: {
+        enabled: true,                 // Master switch for all debug logs/overlays
+        verboseLoggingEnabled: false,  // Enables more detailed console logs
+        logLevel: 1                    // 0: errors only, 1: info, 2: verbose/spammy
     }
 };
 

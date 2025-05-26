@@ -8,6 +8,8 @@ import {
     LinearFilter,
     RGBAFormat
 } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import settings from '../config/settings.js'; // Added
+import DebugOverlay from '../utils/DebugOverlay.js'; // Added
 
 class VideoTextureManager {
     constructor(videoStateInstance) {
@@ -42,8 +44,9 @@ class VideoTextureManager {
         this.tempTexture.minFilter = LinearFilter;
         this.tempTexture.magFilter = LinearFilter;
         
-        // The VideoState will initially use this tempTexture
-        console.log(`VideoTextureManager: Placeholder texture created for ${this.videoState.source}`);
+        if (settings.debug.verboseLoggingEnabled && window.debug) {
+            window.debug.log(`VideoTextureManager: Placeholder texture created for ${this.videoState.source}`);
+        }
     }
 
     // Called when video 'loadeddata' event fires
@@ -57,12 +60,16 @@ class VideoTextureManager {
             this.actualVideoTexture.magFilter = LinearFilter;
             this.actualVideoTexture.format = RGBAFormat;
             this.hasHighQualityTexture = true;
-            console.log(`VideoTextureManager: HQ texture prepared for ${this.videoState.source} (not yet active).`);
+            if (settings.debug.verboseLoggingEnabled && window.debug) {
+                window.debug.log(`VideoTextureManager: HQ texture prepared for ${this.videoState.source} (not yet active).`);
+            }
             
             // If video is already playing and ready, attempt to activate immediately
             this.tryActivateHighQualityTexture();
         } else {
-            console.warn(`VideoTextureManager: Cannot prepare HQ texture for ${this.videoState.source}, video dimensions not available.`);
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoTextureManager: Cannot prepare HQ texture for ${this.videoState.source}, video dimensions not available.`, 'warn');
+            }
         }
     }
 
@@ -78,7 +85,9 @@ class VideoTextureManager {
             this.videoState.mesh.material.uniforms.videoTexture.value = this.actualVideoTexture;
             this.videoState.mesh.material.needsUpdate = true;
             this.videoState.texture = this.actualVideoTexture; // Update VideoState's main texture reference
-            console.log(`VideoTextureManager: Activated HQ texture for ${this.videoState.source}.`);
+            if (settings.debug.verboseLoggingEnabled && window.debug) {
+                window.debug.log(`VideoTextureManager: Activated HQ texture for ${this.videoState.source}.`);
+            }
             return true;
         }
         return false;
@@ -110,7 +119,9 @@ class VideoTextureManager {
             this.tempTexture = null;
         }
         this.hasHighQualityTexture = false;
-        console.log(`VideoTextureManager: Textures cleaned up for ${this.videoState.source}`);
+        if (settings.debug.verboseLoggingEnabled && window.debug) {
+            window.debug.log(`VideoTextureManager: Textures cleaned up for ${this.videoState.source}`);
+        }
     }
 }
 

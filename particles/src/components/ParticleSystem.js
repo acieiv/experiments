@@ -4,6 +4,7 @@
  */
 
 import settings from '../config/settings.js';
+import DebugOverlay from '../utils/DebugOverlay.js'; // Added
 // SimplexNoise is now used by ParticleAnimator
 import ParticleAttributeInitializer from './ParticleAttributeInitializer.js';
 import ParticleAnimator from './ParticleAnimator.js';
@@ -96,7 +97,9 @@ class ParticleSystem {
             // Add to scene
             this.scene.add(this.particleSystem);
         } catch (error) {
-            console.error('Error initializing particle system:', error);
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`ParticleSystem: Error initializing: ${error.message}`, 'error');
+            }
             throw error;
         }
     }
@@ -183,7 +186,9 @@ class ParticleSystem {
      * Prepare particle system for video overlay
      */
     prepareForVideoOverlay() {
-        console.log("Preparing particle sphere for video overlay");
+        if (settings.debug.verboseLoggingEnabled && window.debug) {
+            window.debug.log("ParticleSystem: Preparing particle sphere for video overlay");
+        }
         
         // Adjust particle properties for better video visibility
         if (this.material) {

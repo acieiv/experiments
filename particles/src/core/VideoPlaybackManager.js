@@ -2,6 +2,8 @@
  * VideoPlaybackManager.js
  * Manages playback state, buffering, and playback rate for a VideoState instance.
  */
+import settings from '../config/settings.js'; // Added
+import DebugOverlay from '../utils/DebugOverlay.js'; // Added
 
 class VideoPlaybackManager {
     constructor(videoStateInstance) {
@@ -33,9 +35,7 @@ class VideoPlaybackManager {
                 }
                 break;
             case 'buffering':
-                //readyState 3 is HAVE_FUTURE_DATA - enough data for current and some future frames
-                //readyState 4 is HAVE_ENOUGH_DATA - enough data to play through to the end, likely
-                if (bufferAhead >= this.minBufferForPlayback && this.video.readyState >= 3) { 
+                if (bufferAhead >= this.minBufferForPlayback && this.video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) { 
                     this.playbackState = 'playing';
                     this.playbackStartTime = now;
                 }
@@ -50,8 +50,8 @@ class VideoPlaybackManager {
                 // Stay in ready state unless a stutter occurs (handled by event manager)
                 break;
         }
-        if (oldState !== this.playbackState) {
-            console.log(`VideoPlaybackManager: State for ${this.videoState.source} → ${this.playbackState} (from ${oldState})`);
+        if (oldState !== this.playbackState && settings.debug.verboseLoggingEnabled && window.debug) {
+            window.debug.log(`VideoPlaybackManager: State for ${this.videoState.source} → ${this.playbackState} (from ${oldState})`);
         }
     }
 
@@ -103,10 +103,12 @@ class VideoPlaybackManager {
         
         if (Math.abs(this.video.playbackRate - this.playbackRate) > 0.05) {
             this.video.playbackRate = this.playbackRate;
-            // console.log(
-            //     `VideoPlaybackManager: Adjusting rate for ${this.videoState.source}:`,
-            //     `${this.video.playbackRate.toFixed(2)}x (target: ${targetRate.toFixed(2)}x, buffer: ${bufferAhead.toFixed(1)}s, state: ${this.playbackState})`
-            // );
+            if (settings.debug.logLevel > 1 && window.debug) { // Use logLevel for very spammy logs
+                window.debug.log(
+                    `VideoPlaybackManager: Adjusting rate for ${this.videoState.source}: ` +
+                    `${this.video.playbackRate.toFixed(2)}x (target: ${targetRate.toFixed(2)}x, buffer: ${bufferAhead.toFixed(1)}s, state: ${this.playbackState})`
+                );
+            }
         }
     }
 
@@ -144,12 +146,12 @@ class VideoPlaybackManager {
             isReady = bufferAhead >= this.minBufferForTransition;
         }
         
-        // if (!isReady) {
-        //     console.log(
-        //         `VideoPlaybackManager: Video not ready for transition ${this.videoState.source}`,
-        //         `(buffer: ${bufferAhead.toFixed(1)}s/${this.minBufferForTransition}s, state: ${this.playbackState}, played: ${(playbackTime/1000).toFixed(1)}s/${this.minPlaybackTime}s)`
-        //     );
-        // }
+        if (!isReady && settings.debug.verboseLoggingEnabled && window.debug) {
+            window.debug.log(
+                `VideoPlaybackManager: Video not ready for transition ${this.videoState.source} ` +
+                `(buffer: ${bufferAhead.toFixed(1)}s/${this.minBufferForTransition}s, state: ${this.playbackState}, played: ${(playbackTime/1000).toFixed(1)}s/${this.minPlaybackTime}s)`
+            );
+        }
         return isReady;
     }
 
@@ -187,7 +189,9 @@ class VideoPlaybackManager {
         this.lastStutterTime = performance.now();
         if (this.playbackState === 'playing' || this.playbackState === 'ready') {
             this.playbackState = 'buffering';
-            console.log(`VideoPlaybackManager: State for ${this.videoState.source} → buffering (due to stutter)`);
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoPlaybackManager: State for ${this.videoState.source} → buffering (due to stutter)`);
+            }
         }
     }
     
@@ -195,38 +199,41 @@ class VideoPlaybackManager {
     handlePlay() {
         this.lastStutterTime = 0; // Reset stutter time on successful play/resume
 
-        if (this.video && this.video.readyState < 3) {
-            // If readyState is insufficient, force to buffering unless already initializing/buffering.
-            // This handles cases where play is called but browser isn't ready.
+        if (this.video && this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
             if (this.playbackState !== 'buffering' && this.playbackState !== 'initializing') {
                 this.playbackState = 'buffering';
-                console.warn(`VideoPlaybackManager: ${this.videoState.source} handlePlay event when readyState (${this.video.readyState}) is insufficient. Forcing to buffering.`);
+                if (settings.debug.enabled && window.debug) {
+                    window.debug.log(`VideoPlaybackManager: ${this.videoState.source} handlePlay event when readyState (${this.video.readyState}) is insufficient. Forcing to buffering.`, 'warn');
+                }
             } else {
-                 // Already in a state that's waiting for readyState/buffer, so just note the play attempt.
-                 console.log(`VideoPlaybackManager: ${this.videoState.source} handlePlay event while ${this.playbackState} and readyState is ${this.video.readyState}. Waiting for conditions.`);
+                 if (settings.debug.verboseLoggingEnabled && window.debug) {
+                    window.debug.log(`VideoPlaybackManager: ${this.videoState.source} handlePlay event while ${this.playbackState} and readyState is ${this.video.readyState}. Waiting for conditions.`);
+                 }
             }
-            return; // Do not proceed if readyState is too low
+            return; 
         }
 
-        // If readyState is sufficient, proceed based on current playbackState
         if (this.playbackState === 'buffering' || this.playbackState === 'initializing') {
             const previousStateForLog = this.playbackState;
             this.playbackState = 'playing';
             this.playbackStartTime = performance.now();
-            console.log(`VideoPlaybackManager: State for ${this.videoState.source} → playing (from ${previousStateForLog} via handlePlay, readyState: ${this.video ? this.video.readyState : 'N/A'})`);
+            if (settings.debug.verboseLoggingEnabled && window.debug) {
+                window.debug.log(`VideoPlaybackManager: State for ${this.videoState.source} → playing (from ${previousStateForLog} via handlePlay, readyState: ${this.video ? this.video.readyState : 'N/A'})`);
+            }
         } else if (this.playbackState === 'playing' || this.playbackState === 'ready') {
-            // If already playing or ready, this 'play' event is likely a confirmation or a result of seeking.
-            // No state change needed, but good to acknowledge.
-            console.log(`VideoPlaybackManager: Play event confirmed for ${this.videoState.source} (already ${this.playbackState}, readyState: ${this.video ? this.video.readyState : 'N/A'})`);
+            if (settings.debug.verboseLoggingEnabled && window.debug) {
+                window.debug.log(`VideoPlaybackManager: Play event confirmed for ${this.videoState.source} (already ${this.playbackState}, readyState: ${this.video ? this.video.readyState : 'N/A'})`);
+            }
         }
-        // Other states are not explicitly handled here, assuming they are transient or error states.
     }
 
     // Call this when video is paused (from event)
     handlePause() {
          if (this.playbackState === 'playing' || this.playbackState === 'ready') {
             this.playbackState = 'buffering';
-            console.log(`VideoPlaybackManager: State for ${this.videoState.source} → buffering (paused)`);
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoPlaybackManager: State for ${this.videoState.source} → buffering (paused)`);
+            }
         }
     }
 }

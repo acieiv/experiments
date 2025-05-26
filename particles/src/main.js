@@ -8,7 +8,6 @@ import SceneManager from './core/SceneManager.js'; // Keep one SceneManager impo
 import MouseTracker from './utils/MouseTracker.js';
 import ParticleSystem from './components/ParticleSystem.js';
 import VideoManager from './core/VideoManager.js';
-import UIManager from './core/UIManager.js'; // Step 6: Uncomment UIManager
 /*
 */
 
@@ -18,7 +17,6 @@ window.THREE = THREE; // Step 2: Uncomment
 // Global variables
 let sceneManager;
 let videoManager;
-let uiManager;
 let particleSystem;
 let mouseTracker;
 let container;
@@ -28,7 +26,7 @@ let debug;
 /**
  * Initialize the application
  */
-function init() {
+async function init() { // Made async
     try {
         // Initialize debug overlay and make it globally available
         debug = new DebugOverlay(); // Step 1: Enable DebugOverlay
@@ -67,17 +65,8 @@ function init() {
         // Create video manager
         debug.log("Creating VideoManager"); // Step 5: Update log message
         videoManager = new VideoManager(sceneManager.scene); // Step 5: Uncomment (sceneManager is available)
+        await videoManager.initializeAsync(); // Await async initialization
         debug.setState('VideoManager', 'initialized');
-        
-        // Create UI manager with callbacks
-        debug.log("Creating UIManager"); // Step 6: Update log message
-        uiManager = new UIManager(container, { // Step 6: Uncomment
-            onOpacityChange: (value) => videoManager.setVideoOpacity(value),
-            onZoomChange: (value) => videoManager.setVideoScale(value),
-            onOffsetXChange: (value) => videoManager.setVideoOffsetX(value),
-            onOffsetYChange: (value) => videoManager.setVideoOffsetY(value)
-        });
-        debug.setState('UIManager', 'initialized');
         
         // Log successful initialization
         debug.log("All components initialized successfully"); 
@@ -143,14 +132,40 @@ function animate(time) {
 
 // Call init directly now that the module is loaded and parsed.
 // The dynamic import in index.html ensures this runs after index.html's script starts.
-console.log('[main.js] About to call init() directly.');
-init();
+console.log('[main.js] About to call async init() via IIFE.');
+
+(async () => {
+    try {
+        await init();
+    } catch (error) {
+        const message = `Error during async application initialization: ${error.message}`;
+        if (window.debug && typeof window.debug.showError === 'function') {
+            // Assuming showError can take an error object or additional details
+            window.debug.showError(message, error.stack || error); 
+        } else if (window.debug && typeof window.debug.log === 'function') {
+            window.debug.log(message, 'error');
+            if (error.stack) window.debug.log(error.stack, 'error');
+        } else {
+            console.error(message, error);
+        }
+        
+        // Update UI to show error, similar to existing catch in index.html
+        const containerElement = document.getElementById('container');
+        if (containerElement) {
+            containerElement.innerHTML = `<div style="color: red; padding: 20px; font-family: monospace; white-space: pre-wrap;">${message}\n\n${error.stack || ''}</div>`;
+        }
+        const loadingElement = document.getElementById('loading');
+        if (loadingElement) loadingElement.style.display = 'none';
+        
+        // Set a global error state if debug is available
+        if (window.debug) window.debug.setState('Application', 'fatal_error');
+    }
+})();
 
 // Export for debugging
 window.app = { // Step 7: Uncomment
     sceneManager,
     videoManager,
-    uiManager,
     particleSystem,
     mouseTracker,
     settings

@@ -5,6 +5,7 @@
 
 import { Vector2 } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import settings from '../config/settings.js';
+import DebugOverlay from '../utils/DebugOverlay.js'; // Added
 import VideoPool from './VideoPool.js';
 import VideoTransitionController from './VideoTransitionController.js';
 
@@ -18,12 +19,15 @@ class VideoManager {
         this.videoPool = null;
         this.transitionController = null;
         
-        // Initialize
-        this.initialize();
+        // Defer actual initialization to an async method
+        // The constructor itself cannot be async.
+        // The caller (e.g., main.js) will need to await initializeAsync().
     }
     
-    initialize() {
-        console.log("Initializing VideoManager");
+    async initializeAsync() {
+        if (settings.debug.enabled && window.debug) {
+            window.debug.log("VideoManager: Initializing asynchronously");
+        }
         
         // Create video pool
         this.videoPool = new VideoPool(
@@ -34,11 +38,32 @@ class VideoManager {
                 position: settings.video.position,
                 parallaxAmount: settings.video.parallaxAmount,
                 shaders: settings.shaders
+                // VideoPool's constructor now calls its own initializeAsync,
+                // so we don't await that directly here.
+                // However, if VideoPool's initializeAsync needed to be awaited *by VideoManager*
+                // before VideoManager itself is considered initialized, we would do:
+                // await this.videoPool.initializeAsync(); // Assuming VideoPool's constructor doesn't await it.
+                // For now, VideoPool handles its own async init internally triggered by its constructor.
             }
         );
+        
+        // Await the VideoPool's own asynchronous initialization
+        if (this.videoPool.initializationPromise) {
+            await this.videoPool.initializationPromise;
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log("VideoManager: VideoPool has completed its async initialization.");
+            }
+        } else {
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log("VideoManager: VideoPool initializationPromise not found. Proceeding without explicit await.", 'warn');
+            }
+        }
 
         // Create transition controller
         this.transitionController = new VideoTransitionController(this.videoPool);
+        if (settings.debug.enabled && window.debug) {
+            window.debug.log("VideoManager: Async initialization complete.");
+        }
     }
     
     /**
