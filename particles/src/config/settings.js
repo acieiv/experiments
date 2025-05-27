@@ -22,16 +22,16 @@ const settings = {
     particles: {
         count: 6000,
         radius: 2,
-        radiusVariation: 0.1,
+        radiusVariation: 0.25,
         baseColor: 0x3388ff, // Blue base color for futuristic feel
         colorVariation: 0.3,
-        minSize: 0.04,
+        minSize: 0.045,
         maxSize: 0.12,
         animationSpeed: 0.005,
-        depthLayers: 3,
-        depthVariation: 0.3,
+        depthLayers: 5,
+        depthVariation: 0.4,
         opacity: 0.5,
-        parallaxDepthFactor: 0.6, // Added for parallax strength
+        parallaxDepthFactor: 0.4, // Added for parallax strength
         parallaxCounterRotationFactor: 0.008, // Added for counter-rotation effect
         rotationSpeed: {
             x: 0.00005,
@@ -53,6 +53,11 @@ const settings = {
                 curlScale: 1.2,      // Scale for curl noise sampling
                 helixFactor: 0.5     // Helical motion influence
             }
+        },
+        centerEffect: { // New section
+            enabled: true,
+            radius: 1.3,       // Changed from 1.65 to match video plane radius
+            sizeFactor: 0.25    // Changed from 0.005 to make particles less tiny
         }
     },
     
@@ -65,7 +70,7 @@ const settings = {
         ],
         planeSize: 3.0,
         position: { z: -1.0 },
-        initialOpacity: 0.8,
+        initialOpacity: 3.5,
         transitionDuration: 2.0, // seconds for fade transition
         videoDuration: 20.0, // seconds before switching videos (Increased from 15.0)
         maxNextBufferWaitDuration: 5.0, // seconds to wait for next video to buffer before forcing transition
@@ -83,7 +88,7 @@ const settings = {
             defaultOffsetX: 0.0,
             defaultOffsetY: 0.0,
             distortionStrength: 0.02,
-            edgeGlowFactor: 0.7,
+            edgeGlowFactor: 0.4,
             pulseSpeed: 0.001,
             pulseAmount: 0.05,
         }

@@ -18,7 +18,8 @@ import {
     AdditiveBlending,
     NormalBlending, // Added NormalBlending
     PointsMaterial,
-    MathUtils // Added MathUtils for clamping
+    MathUtils, // Added MathUtils for clamping
+    DynamicDrawUsage // Added for dynamic attributes
 } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
 // Define constants for magic numbers to improve readability and maintainability
@@ -46,6 +47,7 @@ class ParticleSystem {
         this.originalPositions = null;
         this.colors = null;
         this.sizes = null;
+        this.originalCalculatedSizes = null; // Added to store original calculated sizes
         this.depthFactors = null; // Still needed to pass to animator
         
         // Animator will manage noise instance and its related data structures
@@ -81,6 +83,7 @@ class ParticleSystem {
             this.originalPositions = new Float32Array(this.options.count * 3);
             this.colors = new Float32Array(this.options.count * 3);
             this.sizes = new Float32Array(this.options.count);
+            this.originalCalculatedSizes = new Float32Array(this.options.count); // Initialize new array
             
             // Initialize particles in a spherical distribution
             this.initParticles();
@@ -118,6 +121,7 @@ class ParticleSystem {
             colors: this.colors,
             sizes: this.sizes,
             depthFactors: this.depthFactors,
+            originalCalculatedSizes: this.originalCalculatedSizes, // Pass the new array
             count: this.options.count
         };
         initializer.initializeAll(attributeData);
@@ -125,19 +129,15 @@ class ParticleSystem {
         // Add attributes to geometry
         this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3));
         this.geometry.setAttribute('color', new BufferAttribute(this.colors, 3));
-        this.geometry.setAttribute('size', new BufferAttribute(this.sizes, 1));
+        
+        // Create size attribute with DynamicDrawUsage
+        const sizeAttribute = new BufferAttribute(this.sizes, 1);
+        sizeAttribute.setUsage(DynamicDrawUsage); 
+        this.geometry.setAttribute('size', sizeAttribute);
         
         // Initialize animator's internal state
         this.animator.init(this.originalPositions, this.options.depthLayers);
     }
-
-    // _initializeParticlePositionAndDepth, _initializeParticleColor, _initializeParticleSize
-    // have been moved to ParticleAttributeInitializer.js
-    
-    // initNoiseSystem, calculateCurlNoise, and _calculateNoiseOffsets
-    // have been moved to ParticleAnimator.js
-    
-    // createCircleTexture and createMaterial have been moved to ParticleMaterialFactory.js
     
     /**
      * Update particle positions with enhanced noise-based animation
@@ -153,11 +153,48 @@ class ParticleSystem {
             this.options.animationSpeed 
         );
 
-        // Update geometry
+        // --- NEW LOGIC FOR CENTRAL PARTICLE SIZE ---
+        const centerEffectConfig = this.options.centerEffect || { enabled: false, radius: 0.5, sizeFactor: 0.5 }; // Fallback defaults
+
+        if (this.originalCalculatedSizes && this.geometry && this.geometry.attributes.size) {
+            const currentPositions = this.geometry.attributes.position.array; // Current positions from animator
+            const currentSizes = this.geometry.attributes.size.array;         // Sizes to modify
+            
+            const effectRadiusSq = centerEffectConfig.radius * centerEffectConfig.radius; // Use squared radius for efficiency
+            let sizesChanged = false;
+
+            for (let i = 0; i < this.options.count; i++) {
+                const originalSize = this.originalCalculatedSizes[i];
+                let newSize = originalSize;
+
+                if (centerEffectConfig.enabled) {
+                    const i3 = i * 3;
+                    const px = currentPositions[i3];
+                    const py = currentPositions[i3 + 1];
+                    const distSq = px * px + py * py; // 2D distance from center (0,0) squared
+
+                    if (distSq < effectRadiusSq) {
+                        newSize = originalSize * centerEffectConfig.sizeFactor;
+                    }
+                }
+                
+                if (currentSizes[i] !== newSize) {
+                    currentSizes[i] = newSize;
+                    sizesChanged = true;
+                }
+            }
+
+            if (sizesChanged) {
+                this.geometry.attributes.size.needsUpdate = true;
+            }
+
+        }
+        // --- END OF NEW LOGIC ---
+
+        // Update geometry position attribute
         this.geometry.attributes.position.needsUpdate = true;
     }
     
-    // _calculateNoiseOffsets has been moved to ParticleAnimator.js
     
     /**
      * Add rotation to the entire particle system
@@ -241,15 +278,8 @@ class ParticleSystem {
         const factor = this.options.parallaxCounterRotationFactor;
         const clampLimit = 0.15; // As suggested by user
 
-        // Set particle system rotation directly based on smoothed mouse input,
-        // in the opposite direction of camera movement, and clamp the rotation.
-        
-        // If mouse moves right (positive smoothedMouseX), camera moves right.
-        // Particles rotate slightly left around Y-axis (negative rotation).
         this.particleSystem.rotation.y = MathUtils.clamp(smoothedMouseX * -factor, -clampLimit, clampLimit);
         
-        // If mouse moves up (positive smoothedMouseY), camera moves up.
-        // Particles rotate slightly "backwards" or "down" around X-axis (negative rotation).
         this.particleSystem.rotation.x = MathUtils.clamp(smoothedMouseY * -factor, -clampLimit, clampLimit);
     }
 }

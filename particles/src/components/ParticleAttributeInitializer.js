@@ -22,7 +22,8 @@ class ParticleAttributeInitializer {
      */
     initializeAll(attributeData) {
         const { baseColor, count } = this.options;
-        const { positions, originalPositions, colors, sizes, depthFactors } = attributeData;
+        // Add originalCalculatedSizes to destructuring
+        const { positions, originalPositions, colors, sizes, depthFactors, originalCalculatedSizes } = attributeData; 
 
         let baseColorObj;
         if (typeof baseColor === 'number') {
@@ -34,7 +35,8 @@ class ParticleAttributeInitializer {
         for (let i = 0; i < count; i++) {
             const depthFactor = this._initializeParticlePositionAndDepth(i, positions, originalPositions, depthFactors);
             this._initializeParticleColor(i, colors, baseColorObj, depthFactor);
-            this._initializeParticleSize(i, sizes, depthFactor);
+            // Pass originalCalculatedSizes to _initializeParticleSize
+            this._initializeParticleSize(i, sizes, originalCalculatedSizes, depthFactor);
         }
     }
 
@@ -117,13 +119,19 @@ class ParticleAttributeInitializer {
      * Initializes the size for a single particle.
      * @param {number} index - The index of the particle.
      * @param {Float32Array} sizes - Array to store sizes.
+     * @param {Float32Array} originalCalculatedSizes - Array to store original calculated sizes.
      * @param {number} depthFactor - The depth factor of the particle.
      */
-    _initializeParticleSize(index, sizes, depthFactor) {
+    _initializeParticleSize(index, sizes, originalCalculatedSizes, depthFactor) { // Added originalCalculatedSizes parameter
         const { minSize, maxSize } = this.options;
-
         const sizeVariation = maxSize - minSize;
-        sizes[index] = minSize + (sizeVariation * (Math.random() * (1 - DEPTH_SIZE_INFLUENCE_FACTOR) + depthFactor * DEPTH_SIZE_INFLUENCE_FACTOR));
+        // Calculate the particle's unique original size
+        const calculatedSize = minSize + (sizeVariation * (Math.random() * (1 - DEPTH_SIZE_INFLUENCE_FACTOR) + depthFactor * DEPTH_SIZE_INFLUENCE_FACTOR));
+        
+        sizes[index] = calculatedSize; // Set the initial current size
+        if (originalCalculatedSizes) { // Store it in the new array if provided
+            originalCalculatedSizes[index] = calculatedSize;
+        }
     }
 }
 
