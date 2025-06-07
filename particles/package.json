@@ -1,0 +1,7 @@
+{
+  "name": "particles",
+  "packageManager": "yarn@4.9.2",
+  "scripts": {
+    "dev": "npx serve"
+  }
+}

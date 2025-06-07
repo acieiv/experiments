@@ -22,13 +22,13 @@ const settings = {
     particles: {
         count: 6000,
         radius: 2,
-        radiusVariation: 0.25,
+        radiusVariation: 0.20,
         baseColor: 0x3388ff, // Blue base color for futuristic feel
         colorVariation: 0.3,
         minSize: 0.045,
         maxSize: 0.12,
         animationSpeed: 0.005,
-        depthLayers: 5,
+        depthLayers: 10,
         depthVariation: 0.4,
         opacity: 0.5,
         parallaxDepthFactor: 0.4, // Added for parallax strength
@@ -77,7 +77,6 @@ const settings = {
         parallaxAmount: 0.15, // How much the video planes move with mouse
         gentlePauseWaitingCountThreshold: 3, // Number of 'waiting' events before more aggressive stall handling
         gentlePauseRecoveryTimeoutMs: 2500, // Milliseconds to wait for recovery during a gentle pause
-        fallbackVideoUrl: 'src/assets/videos/fallback_video.mp4', // Default fallback video
         maxLoadRetries: 1, // Retries for initial load/HEAD check
     },
     

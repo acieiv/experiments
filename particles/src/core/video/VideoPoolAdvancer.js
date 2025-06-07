@@ -85,20 +85,8 @@ class VideoPoolAdvancer {
              return;
         }
         if (this.pool.sources.length === 0) {
-            if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: No sources to advance to.", 'warn');
-            if (settings.video.fallbackVideoUrl) {
-                const fallbackState = await this._ensureAndPreloadState(settings.video.fallbackVideoUrl, 0);
-                if (fallbackState) {
-                    this.pool.activeState = fallbackState;
-                    this.pool.nextState = fallbackState;
-                    if (this.pool.activeState.video) this.pool.activeState.video.loop = true;
-                    this.pool.activeState.isCurrentUserVisible = true;
-                    this.pool.activeState.setOpacity(1);
-                    if (this.pool.activeState.mesh && !this.pool.activeState.mesh.parent) this.scene.add(this.pool.activeState.mesh);
-                    this.pool.activeState.play().catch(e => window.debug?.log(`Error playing fallback: ${e.message}`, 'error'));
-                    return;
-                }
-            }
+            if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: No sources to advance to.", 'error'); // Changed to error
+            // Removed fallback logic
             throw new Error("Cannot advance: No video sources available.");
         }
         if (this.pool.sources.length === 1 && this.pool.activeState && !this.pool.activeState.isPermanentlyFailed) {
@@ -147,8 +135,8 @@ class VideoPoolAdvancer {
         if (oldActive) {
             if (oldActive !== newActiveState) {
                 oldActive.isCurrentUserVisible = false;
-                if (oldActive.isPermanentlyFailed || 
-                    (!this.pool.sources.includes(oldActive.source) && oldActive.source !== settings.video.fallbackVideoUrl)) {
+                // Simplified condition: if permanently failed OR no longer in the (potentially filtered) sources list
+                if (oldActive.isPermanentlyFailed || !this.pool.sources.includes(oldActive.source)) {
                     if (settings.debug.enabled && window.debug) {
                         window.debug.log(`VideoPoolAdvancer: Fully cleaning up and removing ${oldActive.source} from states map. PermanentFail: ${oldActive.isPermanentlyFailed}, NotInSources: ${!this.pool.sources.includes(oldActive.source)}`);
                     }
@@ -204,26 +192,9 @@ class VideoPoolAdvancer {
         }
 
         if (!nextValidSourceFound) {
-            if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: No valid primary videos found. Attempting fallback.", 'warn');
-            if (settings.video.fallbackVideoUrl) {
-                const fallbackState = await this._ensureAndPreloadState(settings.video.fallbackVideoUrl, 0);
-                if (fallbackState) {
-                    this.pool.activeState = fallbackState;
-                    this.pool.nextState = fallbackState;
-                    if (this.pool.activeState.video) this.pool.activeState.video.loop = true;
-                    this.pool.activeState.isCurrentUserVisible = true;
-                    this.pool.activeState.setOpacity(1); // Make sure fallback is visible
-                    this.pool.activeState.play().catch(e => window.debug?.log(`Error playing fallback video: ${e.message}`, 'error'));
-                    if (this.pool.activeState.mesh && !this.pool.activeState.mesh.parent) this.scene.add(this.pool.activeState.mesh);
-                    if (settings.debug.enabled && window.debug) window.debug.log(`VideoPoolAdvancer: Switched to fallback video ${this.pool.activeState.source}.`);
-                } else {
-                    if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: Fallback video also failed. No videos to play.", 'error');
-                    this.pool.activeState = null; this.pool.nextState = null;
-                }
-            } else {
-                if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: No valid videos and no fallback. Playback will stop.", 'error');
-                this.pool.activeState = null; this.pool.nextState = null;
-            }
+            if (settings.debug.enabled && window.debug) window.debug.log("VideoPoolAdvancer: No valid videos found. Playback will stop.", 'error');
+            // Removed fallback logic
+            this.pool.activeState = null; this.pool.nextState = null;
         }
         
         if (this.pool.activeState && settings.debug.enabled && window.debug) {

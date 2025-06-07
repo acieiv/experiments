@@ -1,0 +1,3 @@
+[submodule "particles-embed"]
+	path = particles-embed
+	url = git@github.com:acieiv/particles-embed.git

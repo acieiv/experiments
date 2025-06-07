@@ -5,7 +5,6 @@
 
 class DebugOverlay {
     constructor() {
-        this.overlay = this.createOverlay();
         this.logs = [];
         this.states = new Map();
     }
@@ -28,7 +27,6 @@ class DebugOverlay {
             max-height: 300px;
             overflow-y: auto;
         `;
-        document.body.appendChild(overlay);
         return overlay;
     }
 
@@ -36,13 +34,11 @@ class DebugOverlay {
         const timestamp = new Date().toLocaleTimeString();
         this.logs.push({ message, type, timestamp });
         if (this.logs.length > 50) this.logs.shift();
-        this.update();
         console.log(`[${type.toUpperCase()}] ${message}`);
     }
 
     setState(component, state) {
         this.states.set(component, state);
-        this.update();
     }
 
     update() {
@@ -64,7 +60,6 @@ class DebugOverlay {
             html += `<span style="color: ${color}">[${log.timestamp}] ${log.message}</span><br>`;
         });
 
-        this.overlay.innerHTML = html;
     }
 
     showError(error) {

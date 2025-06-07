@@ -41,7 +41,6 @@ This project creates a futuristic crystal ball animation using Three.js. The ani
   /core           - Core application components
     SceneManager.js   - Manages Three.js scene, camera, and renderer
     VideoManager.js   - Handles video loading, transitions, and rendering
-    UIManager.js      - Creates and manages UI controls
   /components     - Reusable UI and visual components
     ParticleSystem.js - Creates and manages the particle system
   /shaders        - GLSL shader code (for future use)
@@ -71,14 +70,6 @@ Responsible for:
 - Handling video transitions
 - Applying shader effects to videos
 - Managing video positioning and parallax effects
-
-#### UIManager
-
-Responsible for:
-- Creating the control panel UI
-- Managing UI controls (sliders, buttons)
-- Handling user interactions with controls
-- Providing callbacks for control changes
 
 ### Components
 

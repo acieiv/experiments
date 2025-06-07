@@ -93,14 +93,10 @@ class VideoPoolInitializer {
 
         if (!this.sources || this.sources.length === 0) {
             if (settings.debug.enabled && window.debug) {
-                window.debug.log("VideoPoolInitializer: No sources provided. Attempting to use fallback video.", 'warn');
+                window.debug.log("VideoPoolInitializer: No sources provided.", 'error'); // Changed message
             }
-            if (settings.video.fallbackVideoUrl) {
-                this.sources = [settings.video.fallbackVideoUrl];
-                this.pool.sources = this.sources; // Update pool's sources
-            } else {
-                throw new Error("VideoPoolInitializer: Requires at least one video source and no fallback is configured.");
-            }
+            // Removed fallback logic here
+            throw new Error("VideoPoolInitializer: Requires at least one video source."); // Simplified error
         }
 
         // Ensure planeGeometry is created on the pool instance if not already
@@ -134,50 +130,15 @@ class VideoPoolInitializer {
         }
 
         if (initialPlayableSources.length === 0) {
-            if (settings.video.fallbackVideoUrl && (!this.sources.includes(settings.video.fallbackVideoUrl) || this.states.get(settings.video.fallbackVideoUrl)?.isPermanentlyFailed)) {
-                if (settings.debug.enabled && window.debug) {
-                    window.debug.log("VideoPoolInitializer: All primary sources failed. Attempting to initialize fallback video.", 'warn');
-                }
-                const fallbackState = await this._ensureAndPreloadState(settings.video.fallbackVideoUrl, 0);
-                if (fallbackState && !fallbackState.isPermanentlyFailed) {
-                    this.sources = [settings.video.fallbackVideoUrl];
-                    this.pool.sources = this.sources; // Update pool's sources
-                    
-                    // Clear any failed primary states that might have been added to the map before failing
-                    const keysToDelete = [];
-                    this.states.forEach((s, key) => {
-                        if (key !== settings.video.fallbackVideoUrl) keysToDelete.push(key);
-                    });
-                    keysToDelete.forEach(key => {
-                        this.states.get(key)?.cleanup();
-                        this.states.delete(key);
-                    });
-                    // Ensure fallback state is in the map (it should be by _ensureAndPreloadState)
-                    if (!this.states.has(settings.video.fallbackVideoUrl)) {
-                         this.states.set(settings.video.fallbackVideoUrl, fallbackState);
-                    }
-
-                    initialPlayableSources = [settings.video.fallbackVideoUrl];
-                    if (settings.debug.enabled && window.debug) {
-                        window.debug.log(`VideoPoolInitializer: Fallback video ${settings.video.fallbackVideoUrl} initialized successfully.`);
-                    }
-                } else {
-                    if (settings.debug.enabled && window.debug) {
-                        window.debug.log(`VideoPoolInitializer: Fallback video ${settings.video.fallbackVideoUrl} also failed to initialize.`, 'error');
-                    }
-                    // Fallback state cleanup handled by _ensureAndPreloadState if it created it and it failed
-                    throw new Error("VideoPoolInitializer: All primary video sources and the fallback video failed to initialize.");
-                }
-            } else if (initialPlayableSources.length === 0) {
-                 throw new Error("VideoPoolInitializer: No playable video sources found after verification, and no fallback available or fallback also failed.");
-            }
+            // All primary sources failed, and no fallback logic anymore
+            throw new Error("VideoPoolInitializer: No playable video sources found after verification.");
         }
         
+        // This condition might still be relevant if some sources failed but not all
         if (initialPlayableSources.length > 0 && initialPlayableSources.length !== this.sources.length) {
-            if(!(initialPlayableSources.length === 1 && initialPlayableSources[0] === settings.video.fallbackVideoUrl)) {
-                 if (settings.debug.enabled && window.debug) {
-                    window.debug.log(`VideoPoolInitializer: Updating sources list to reflect playable videos. Original: ${this.sources.length}, Playable: ${initialPlayableSources.length}`);
-                 }
+            // The check for fallbackVideoUrl is no longer needed here
+            if (settings.debug.enabled && window.debug) {
+                window.debug.log(`VideoPoolInitializer: Updating sources list to reflect playable videos. Original: ${this.sources.length}, Playable: ${initialPlayableSources.length}`);
             }
             this.sources = initialPlayableSources;
             this.pool.sources = this.sources; // Critical: Update the main pool's source list

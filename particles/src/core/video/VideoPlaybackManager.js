@@ -81,8 +81,24 @@ class VideoPlaybackManager {
         this.updatePlaybackState(currentBufferAhead); // Update internal state based on buffer
         this.adjustPlaybackRate(currentBufferAhead); // Adjust rate based on buffer and state
         
-        const threshold = forTransition ? this.minBufferForTransition : this.minBufferForPlayback;
-        return currentBufferAhead >= threshold;
+        // If the browser says it has enough data AND we are not checking for a future transition,
+        // trust the browser and consider the buffer sufficient for immediate playback.
+        if (this.video && this.video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA && !forTransition) {
+            return true;
+        }
+
+        // Otherwise, use the existing logic (including the 1.5s lenient threshold for readyState >= HAVE_ENOUGH_DATA if forTransition is true,
+        // or the full minBufferForPlayback/Transition if readyState is lower).
+        let requiredBuffer = forTransition ? this.minBufferForTransition : this.minBufferForPlayback;
+
+        if (this.video && this.video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+            // This lenientThreshold will now primarily apply when forTransition is true,
+            // or as a fallback if the above direct return for !forTransition wasn't met.
+            const lenientThreshold = 1.5; // seconds 
+            requiredBuffer = Math.min(requiredBuffer, lenientThreshold);
+        }
+        
+        return currentBufferAhead >= requiredBuffer;
     }
 
     adjustPlaybackRate(bufferAhead) {
